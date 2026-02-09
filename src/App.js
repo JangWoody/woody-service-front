@@ -99,33 +99,64 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ secretKey: password }),
       });
-      const success = await res.json();
-      if (success) {
+
+      let payload = null;
+      try {
+        payload = await res.json();
+      } catch (_) {
+        payload = null;
+      }
+
+      const loginOk =
+        (res.ok && payload === true) ||
+        (res.ok &&
+          payload &&
+          typeof payload === "object" &&
+          payload.ok === true);
+
+      if (loginOk) {
         setIsTeacher(true);
         setIsLoginModalOpen(false);
         setPassword("");
-        alert("선생님으로 로그인되었습니다.");
-      } else {
+        alert("선생님으로 로그인 되었습니다.");
+        return;
+      }
+
+      if (res.status === 400) {
+        alert("비밀번호를 입력하세요.");
+      } else if (
+        res.status === 401 ||
+        payload === false ||
+        (payload && payload.ok === false)
+      ) {
         alert("비밀번호가 틀렸습니다.");
+      } else {
+        alert("관리자에게 문의하세요.");
       }
     } catch (err) {
-      alert("로그인 중 오류 발생");
+      alert("관리자에게 문의하세요.");
     }
   };
 
   const handleChangePassword = async () => {
-    if (newPassword.length < 4) return alert("4자리 이상 입력하세요.");
+    if (newPassword.length < 8) return alert("최소 8글자 이상을 입력하세요.");
     try {
-      await fetch(`${API_BASE}/password`, {
+      const res = await fetch(`${API_BASE}/password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ secretKey: newPassword }),
       });
+
+      if (!res.ok) {
+        alert("비밀번호 변경에 실패했습니다. 관리자에게 문의하세요");
+        return;
+      }
+
       alert("비밀번호가 변경되었습니다.");
       setIsPwChangeModalOpen(false);
       setNewPassword("");
     } catch (e) {
-      alert("변경 실패");
+      alert("비밀번호 변경에 실패했습니다. 관리자에게 문의하세요.");
     }
   };
 
