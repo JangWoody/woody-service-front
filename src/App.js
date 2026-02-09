@@ -54,6 +54,96 @@ const getStudentColor = (name) => {
   return colors[Math.abs(hash) % colors.length];
 };
 
+let cachedLoginPublicKey = null;
+
+const pemToArrayBuffer = (pem) => {
+  const base64 = pem
+    .replace("-----BEGIN PUBLIC KEY-----", "")
+    .replace("-----END PUBLIC KEY-----", "")
+    .replace(/\s+/g, "");
+
+  const binary = window.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+};
+
+const arrayBufferToBase64 = (buffer) => {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 0x8000;
+
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+
+  return window.btoa(binary);
+};
+
+const getLoginPublicKey = async () => {
+  if (!window.crypto || !window.crypto.subtle) {
+    throw new Error("WebCrypto is not available.");
+  }
+
+  if (cachedLoginPublicKey) {
+    return cachedLoginPublicKey;
+  }
+
+  const res = await fetch(`${API_BASE}/login/public-key`);
+  if (!res.ok) {
+    throw new Error("Failed to load login public key.");
+  }
+
+  const data = await res.json();
+  const publicKeyPem = data?.publicKeyPem;
+  if (!publicKeyPem) {
+    throw new Error("Login public key is missing.");
+  }
+
+  cachedLoginPublicKey = await window.crypto.subtle.importKey(
+    "spki",
+    pemToArrayBuffer(publicKeyPem),
+    { name: "RSA-OAEP", hash: "SHA-256" },
+    false,
+    ["encrypt"],
+  );
+
+  return cachedLoginPublicKey;
+};
+
+const encryptSecret = async (plainText) => {
+  const key = await getLoginPublicKey();
+  const encoder = new TextEncoder();
+  const encrypted = await window.crypto.subtle.encrypt(
+    { name: "RSA-OAEP" },
+    key,
+    encoder.encode(plainText),
+  );
+  return arrayBufferToBase64(encrypted);
+};
+
+const postEncryptedSecret = async (path, fieldName, plainText) => {
+  const send = async () => {
+    const encrypted = await encryptSecret(plainText);
+    return fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [fieldName]: encrypted }),
+    });
+  };
+
+  let res = await send();
+  if (res.status === 400 && plainText && plainText.trim().length > 0) {
+    // Server restart can invalidate cached public key; refresh once and retry.
+    cachedLoginPublicKey = null;
+    res = await send();
+  }
+  return res;
+};
+
 function App() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState("week");
@@ -94,11 +184,11 @@ function App() {
 
   const handleTeacherLogin = async () => {
     try {
-      const res = await fetch(`${API_BASE}/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ secretKey: password }),
-      });
+      const res = await postEncryptedSecret(
+        "/login",
+        "secretKeyEncrypted",
+        password,
+      );
 
       let payload = null;
       try {
@@ -118,7 +208,7 @@ function App() {
         setIsTeacher(true);
         setIsLoginModalOpen(false);
         setPassword("");
-        alert("선생님으로 로그인 되었습니다.");
+        alert("선생님으로 로그인되었습니다.");
         return;
       }
 
@@ -131,28 +221,29 @@ function App() {
       ) {
         alert("비밀번호가 틀렸습니다.");
       } else {
-        alert("관리자에게 문의하세요.");
+        alert("로그인에 실패했습니다. 관리자에게 문의하세요.");
       }
     } catch (err) {
-      alert("관리자에게 문의하세요.");
+      alert("로그인에 실패했습니다. 관리자에게 문의하세요.");
     }
   };
 
   const handleChangePassword = async () => {
-    if (newPassword.length < 8) return alert("최소 8글자 이상을 입력하세요.");
+    if (newPassword.length < 8)
+      return alert("Please enter at least 8 characters.");
     try {
-      const res = await fetch(`${API_BASE}/password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ secretKey: newPassword }),
-      });
+      const res = await postEncryptedSecret(
+        "/password",
+        "newPasswordEncrypted",
+        newPassword,
+      );
 
       if (!res.ok) {
-        alert("비밀번호 변경에 실패했습니다. 관리자에게 문의하세요");
+        alert("비밀번호 변경에 실패했습니다. 관리자에게 문의하세요.");
         return;
       }
 
-      alert("비밀번호가 변경되었습니다.");
+      alert("비밀번호가 성공적으로 변경되었습니다.");
       setIsPwChangeModalOpen(false);
       setNewPassword("");
     } catch (e) {
