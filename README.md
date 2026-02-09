@@ -1,70 +1,102 @@
-# Getting Started with Create React App
+# Woody Service Front
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+레슨 예약 시스템 프론트엔드입니다.  
+학생은 시간표에서 예약을 신청/취소하고, 선생님은 예약 확정/취소 및 학생 관리를 할 수 있습니다.
 
-## Available Scripts
+## 주요 기능
 
-In the project directory, you can run:
+- 주간/월간 캘린더 보기 전환
+- 시간 슬롯 기반 예약 관리 (10:00 ~ 23:00)
+- 학생 예약 신청/취소
+- 선생님 로그인 후 예약 확정/취소
+- 선생님 비밀번호 변경 (4자리 이상)
+- 학생 등록/삭제 관리
+- 지난 시간 예약 차단
 
-### `npm start`
+## 사용자 사용 방법
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### 학생
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+1. 우측 상단 입력창에 등록된 학생 이름을 입력합니다.
+2. `주간`/`월간` 버튼으로 보기 모드를 전환합니다.
+3. 예약하려는 시간 칸을 클릭해 신청합니다.
+4. 본인이 신청한 같은 칸을 다시 클릭하면 취소할 수 있습니다.
 
-### `npm test`
+참고:
+- 학생은 본인 이름으로 등록된 예약만 보입니다.
+- 이미 확정된 시간, 지난 시간은 신청할 수 없습니다.
+- 실제 신청/취소 동작은 주간 보기에서 시간 칸 클릭으로 진행됩니다.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+### 선생님
 
-### `npm run build`
+1. 우측 상단 `선생님` 버튼으로 로그인합니다.
+2. 예약 항목을 클릭해 상태를 변경합니다.
+3. 설정 메뉴에서 비밀번호 변경, 학생 관리(추가/삭제)를 수행합니다.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+예약 클릭 동작:
+- `pending` 상태: 확정 처리
+- `confirmed` 상태: 예약 취소(삭제)
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## 개발 실행 방법
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### 1) 설치
 
-### `npm run eject`
+```bash
+npm install
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+### 2) 개발 서버 실행
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+```bash
+npm start
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+실행 후 브라우저에서 `http://localhost:3000` 접속
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+## 백엔드 연동
 
-## Learn More
+프론트엔드는 아래 기준으로 API를 호출합니다.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+- API Base: `/api/reservation`
+- 개발 환경 프록시: `src/setupProxy.js`
+- 프록시 대상 기본값: `http://127.0.0.1:8080`
+- 프록시 대상 변경 환경변수: `REACT_APP_API_TARGET`
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+PowerShell 예시:
 
-### Code Splitting
+```powershell
+$env:REACT_APP_API_TARGET="http://127.0.0.1:8080"
+npm start
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+### 프론트엔드에서 사용하는 API 목록
 
-### Analyzing the Bundle Size
+- `GET /api/reservation/schedules`
+- `POST /api/reservation/schedules`
+- `DELETE /api/reservation/schedules/:id`
+- `POST /api/reservation/schedules/:id/confirm`
+- `GET /api/reservation/students`
+- `POST /api/reservation/students`
+- `DELETE /api/reservation/students/:id`
+- `POST /api/reservation/login`
+- `POST /api/reservation/password`
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+## 빌드/배포
 
-### Making a Progressive Web App
+```bash
+npm run build
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+- 빌드 산출물: `build/`
+- `package.json`의 `homepage` 값이 `/reservation`으로 설정되어 있어, 정적 파일 경로가 해당 베이스 경로 기준으로 생성됩니다.
+- 운영 환경에서는 프론트 경로(`/reservation`)와 API 경로(`/api/reservation`)를 라우팅/리버스 프록시로 맞춰주세요.
 
-### Advanced Configuration
+## 프로젝트 구조
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+```text
+src/
+  App.js          # 예약 UI 및 사용자 동작 로직
+  setupProxy.js   # 개발 환경 API 프록시 설정
+public/
+  index.html      # Tailwind CDN 포함 템플릿
+```
