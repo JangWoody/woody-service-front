@@ -19,7 +19,8 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
+    "build": "react-scripts build && npm run obfuscate:js",
+    "obfuscate:js": "npx --yes javascript-obfuscator ./build/static/js --output ./build/static/js --compact true --string-array true --string-array-rotate true --string-array-threshold 0.75 --identifier-names-generator hexadecimal",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },

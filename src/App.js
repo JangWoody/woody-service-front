@@ -130,6 +130,7 @@ const postEncryptedSecret = async (path, fieldName, plainText) => {
     const encrypted = await encryptSecret(plainText);
     return fetch(`${API_BASE}${path}`, {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [fieldName]: encrypted }),
     });
@@ -163,6 +164,22 @@ function App() {
   const [inputStudent, setInputStudent] = useState("");
   const [newStudentName, setNewStudentName] = useState("");
 
+  const fetchTeacherSession = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/teacher/session`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        setIsTeacher(false);
+        return;
+      }
+      const data = await res.json();
+      setIsTeacher(data?.ok === true);
+    } catch (_) {
+      setIsTeacher(false);
+    }
+  }, []);
+
   const fetchData = useCallback(async () => {
     try {
       const schedRes = await fetch(`${API_BASE}/schedules`);
@@ -177,10 +194,11 @@ function App() {
 
   useEffect(() => {
     fetchData();
+    fetchTeacherSession();
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, [fetchData]);
+  }, [fetchData, fetchTeacherSession]);
 
   const handleTeacherLogin = async () => {
     try {
@@ -251,32 +269,59 @@ function App() {
     }
   };
 
+  const handleTeacherLogout = async () => {
+    try {
+      await fetch(`${API_BASE}/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch (_) {
+      // no-op
+    } finally {
+      setIsTeacher(false);
+      setInputStudent("");
+      setIsSettingsMenuOpen(false);
+    }
+  };
+
   const handleAddStudent = async () => {
-    if (!newStudentName.trim()) return alert("이름을 입력하세요.");
+    if (!newStudentName.trim()) return alert("Please enter name.");
     try {
       const res = await fetch(`${API_BASE}/students`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newStudentName }),
       });
       if (res.ok) {
         setNewStudentName("");
         fetchData();
+      } else if (res.status === 403) {
+        alert("Teacher login required.");
       } else {
-        alert("이미 존재하는 이름이거나 오류가 발생했습니다.");
+        alert("Student add failed.");
       }
     } catch (e) {
-      alert("학생 등록 실패");
+      alert("Student add failed.");
     }
   };
 
   const handleDeleteStudent = async (id, name) => {
-    if (!window.confirm(`'${name}' 학생을 삭제하시겠습니까?`)) return;
+    if (!window.confirm(`Delete '${name}'?`)) return;
     try {
-      await fetch(`${API_BASE}/students/${id}`, { method: "DELETE" });
-      fetchData();
+      const res = await fetch(`${API_BASE}/students/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (res.ok) {
+        fetchData();
+      } else if (res.status === 403) {
+        alert("Teacher login required.");
+      } else {
+        alert("Delete failed.");
+      }
     } catch (e) {
-      alert("삭제 실패");
+      alert("Delete failed.");
     }
   };
 
@@ -369,6 +414,7 @@ function App() {
         ) {
           await fetch(`${API_BASE}/schedules/${schedule.id}/confirm`, {
             method: "POST",
+            credentials: "include",
           });
         }
       }
@@ -588,7 +634,7 @@ function App() {
         <header className="p-4 border-b bg-white shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 z-20">
           <div className="flex w-full md:w-auto justify-between items-center gap-4">
             <h1 className="text-xl md:text-2xl font-extrabold text-indigo-600 tracking-tight flex items-center gap-2">
-              <CalIcon className="text-indigo-600" /> Woody Service
+              <CalIcon className="text-indigo-600" /> Woody Reservation
             </h1>
             <div className="flex items-center gap-2 bg-gray-100 rounded-full p-1">
               <button
@@ -622,7 +668,6 @@ function App() {
               </button>
               <span className="font-bold text-base md:text-lg text-gray-700 min-w-[120px] text-center">
                 {format(currentDate, "yyyy년 M월", { locale: ko })}
-                {/* ★ [수정] weekStartsOn: 1 (헤더 날짜 범위 표시) */}
                 {viewMode === "week" && (
                   <span className="text-xs md:text-sm font-normal text-gray-500 ml-1">
                     (
@@ -682,7 +727,7 @@ function App() {
                     onClick={() => setIsSettingsMenuOpen(!isSettingsMenuOpen)}
                     className="text-gray-500 hover:text-indigo-600 p-1"
                   >
-                    <Settings size={18} />
+                    <Settings size={18} /> 설정
                   </button>
                   {isSettingsMenuOpen && (
                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border z-50 overflow-hidden animate-fadeIn">
@@ -709,11 +754,7 @@ function App() {
                 </div>
 
                 <button
-                  onClick={() => {
-                    setIsTeacher(false);
-                    setInputStudent("");
-                    setIsSettingsMenuOpen(false);
-                  }}
+                  onClick={handleTeacherLogout}
                   className="text-gray-500 hover:text-red-600"
                 >
                   <LogOut size={18} />
